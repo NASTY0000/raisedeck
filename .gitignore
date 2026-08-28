@@ -6,6 +6,9 @@ uploads/*
 prisma/dev.db
 prisma/dev.db-journal
 prisma/*.db
+*.db-journal
+!prisma/seed.db
 *.log
 
 .env
+!prisma/.env

@@ -3,6 +3,9 @@ const nextConfig = {
   reactStrictMode: true,
   experimental: {
     serverComponentsExternalPackages: ["bcryptjs", "@prisma/client"],
+    outputFileTracingIncludes: {
+      "/*": ["./prisma/seed.db"],
+    },
   },
 };
 
