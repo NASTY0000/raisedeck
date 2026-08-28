@@ -1,0 +1,230 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   @default("INVESTOR")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions        Session[]
+  company         Company?
+  investorProfile InvestorProfile?
+  firmMemberships FirmMembership[]
+  pipelineAsInvestor PipelineEntry[] @relation("InvestorPipeline")
+  commitments     Commitment[]
+  folderAccess    DataRoomAccess[]
+  invitesCreated  Invite[]           @relation("InvitesCreated")
+  invitesUsed     Invite[]           @relation("InvitesUsed")
+  activities      Activity[]
+  updatesAuthored InvestorUpdate[]
+  filesUploaded   DataRoomFile[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  founderId   String   @unique
+  founder     User     @relation(fields: [founderId], references: [id], onDelete: Cascade)
+  name        String
+  tagline     String   @default("")
+  website     String?
+  sector      String   @default("")
+  location    String   @default("")
+  foundedYear Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  raises      Raise[]
+}
+
+model Raise {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  round        String
+  targetAmount Float
+  currency     String   @default("USD")
+  instrument   String
+  status       String   @default("ACTIVE")
+  valuation    Float?
+  valuationCap Float?
+  summary      String   @default("")
+  deckFileId   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  pipeline      PipelineEntry[]
+  commitments   Commitment[]
+  folders       DataRoomFolder[]
+  files         DataRoomFile[]
+  updates       InvestorUpdate[]
+  invites       Invite[]
+  activities    Activity[]
+}
+
+model InvestorProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firmName  String?
+  title     String?
+  thesis    String?
+  chequeMin Float?
+  chequeMax Float?
+  currency  String   @default("USD")
+}
+
+model Firm {
+  id          String           @id @default(cuid())
+  name        String
+  slug        String           @unique
+  createdAt   DateTime         @default(now())
+  memberships FirmMembership[]
+}
+
+model FirmMembership {
+  id     String @id @default(cuid())
+  firmId String
+  userId String
+  role   String @default("PARTNER")
+  firm   Firm   @relation(fields: [firmId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([firmId, userId])
+}
+
+model PipelineEntry {
+  id            String    @id @default(cuid())
+  raiseId       String
+  investorId    String
+  stage         String    @default("INTRO")
+  investorIntent String   @default("NONE")
+  nextAction    String?
+  nextActionAt  DateTime?
+  notes         String    @default("")
+  introSource   String    @default("")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  raise    Raise @relation(fields: [raiseId], references: [id], onDelete: Cascade)
+  investor User  @relation("InvestorPipeline", fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@unique([raiseId, investorId])
+}
+
+model Commitment {
+  id         String   @id @default(cuid())
+  raiseId    String
+  investorId String
+  amount     Float
+  currency   String   @default("USD")
+  type       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  raise    Raise @relation(fields: [raiseId], references: [id], onDelete: Cascade)
+  investor User  @relation(fields: [investorId], references: [id], onDelete: Cascade)
+}
+
+model DataRoomFolder {
+  id        String   @id @default(cuid())
+  raiseId   String
+  name      String
+  parentId  String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  raise    Raise            @relation(fields: [raiseId], references: [id], onDelete: Cascade)
+  parent   DataRoomFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children DataRoomFolder[] @relation("FolderTree")
+  files    DataRoomFile[]
+  access   DataRoomAccess[]
+}
+
+model DataRoomFile {
+  id          String   @id @default(cuid())
+  raiseId     String
+  folderId    String
+  uploadedById String
+  name        String
+  mimeType    String
+  size        Int
+  storagePath String
+  isDeck      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  raise      Raise          @relation(fields: [raiseId], references: [id], onDelete: Cascade)
+  folder     DataRoomFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  uploadedBy User           @relation(fields: [uploadedById], references: [id])
+}
+
+model DataRoomAccess {
+  id         String @id @default(cuid())
+  folderId   String
+  investorId String
+  canView    Boolean @default(true)
+
+  folder   DataRoomFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  investor User           @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@unique([folderId, investorId])
+}
+
+model InvestorUpdate {
+  id         String   @id @default(cuid())
+  raiseId    String
+  authorId   String
+  title      String
+  body       String
+  published  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  raise  Raise @relation(fields: [raiseId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id])
+}
+
+model Invite {
+  id        String    @id @default(cuid())
+  raiseId   String
+  token     String    @unique
+  email     String
+  name      String    @default("")
+  createdById String
+  usedById  String?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  raise     Raise @relation(fields: [raiseId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("InvitesCreated", fields: [createdById], references: [id])
+  usedBy    User? @relation("InvitesUsed", fields: [usedById], references: [id])
+}
+
+model Activity {
+  id        String   @id @default(cuid())
+  raiseId   String
+  actorId   String
+  type      String
+  message   String
+  createdAt DateTime @default(now())
+
+  raise Raise @relation(fields: [raiseId], references: [id], onDelete: Cascade)
+  actor User  @relation(fields: [actorId], references: [id])
+}
